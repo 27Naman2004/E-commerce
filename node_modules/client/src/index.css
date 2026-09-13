@@ -1,0 +1,149 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #C94F73;     /* Primary pink */
+  --color-secondary: #8E2948;   /* Deep rose/maroon */
+  --color-accent: #C99A3D;      /* Gold accent */
+  --color-saffron: #C94F73;     /* Fallback to primary pink */
+  --color-maroon: #8E2948;      /* Fallback to secondary deep rose */
+  --color-bg-ivory: #FFF4F7;    /* Light pink background */
+  --color-bg-cream: #FFF9F2;    /* Cream */
+  --color-text-main: #35232A;   /* Dark text */
+  --color-text-muted: #806B73;  /* Muted text */
+  --color-border: #F8DDE5;      /* Soft blush pink for borders */
+  --color-success: #477A50;     /* Success Green */
+  --color-cream: #FFF9F2;       /* Backward compatibility */
+}
+
+@layer base {
+  :root {
+    --color-primary: #C94F73;
+    --color-secondary: #8E2948;
+    --color-accent: #C99A3D;
+    --color-saffron: #C94F73;
+    --color-maroon: #8E2948;
+    --color-main-bg: #FFF4F7;
+    --color-soft-bg: #FFF9F2;
+    --color-main-text: #35232A;
+    --color-muted-text: #806B73;
+    --color-border: #F8DDE5;
+    --color-success: #477A50;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    background-color: var(--color-main-bg);
+    color: var(--color-main-text);
+    font-family: 'Poppins', 'Inter', sans-serif;
+    line-height: 1.6;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--color-primary);
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply font-semibold py-3 px-6 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg active:scale-95;
+    background-color: var(--color-primary);
+    color: #FFFFFF;
+  }
+  .btn-primary:hover {
+    background-color: var(--color-secondary);
+  }
+
+  .btn-secondary {
+    @apply font-semibold py-3 px-6 rounded-lg transition-all duration-200 border-2;
+    background-color: transparent;
+    border-color: var(--color-accent);
+    color: var(--color-primary);
+  }
+  .btn-secondary:hover {
+    background-color: var(--color-soft-bg);
+  }
+
+  .btn-maroon {
+    @apply font-semibold py-3 px-6 rounded-lg transition-all duration-200;
+    background-color: var(--color-maroon);
+    color: #FFFFFF;
+  }
+  .btn-maroon:hover {
+    background-color: #5C1929;
+  }
+
+  .btn-saffron {
+    @apply font-semibold py-3 px-6 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg;
+    background-color: var(--color-saffron);
+    color: #FFFFFF;
+  }
+
+  .card {
+    @apply rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden;
+    background-color: #FFFFFF;
+    border: 1px solid var(--color-border);
+  }
+
+  .input-field {
+    @apply w-full rounded-lg px-4 py-3 focus:outline-none focus:ring-2 transition-all;
+    border: 1px solid var(--color-border);
+    background-color: #FFFFFF;
+    color: var(--color-main-text);
+  }
+  .input-field:focus {
+    border-color: transparent;
+    box-shadow: 0 0 0 2px var(--color-primary);
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold;
+  }
+
+  .badge-sale {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold;
+    background-color: #FDF0F2;
+    color: var(--color-maroon);
+  }
+
+  .badge-new {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold;
+    background-color: #EBF3ED;
+    color: var(--color-success);
+  }
+
+  .section-title {
+    @apply text-3xl md:text-4xl font-bold text-center mb-2;
+    font-family: 'Playfair Display', serif;
+    color: var(--color-primary);
+  }
+
+  .section-subtitle {
+    @apply text-center mb-10 text-sm md:text-base;
+    color: var(--color-muted-text);
+  }
+
+  .skeleton {
+    @apply animate-pulse rounded-xl;
+    background-color: var(--color-border);
+  }
+}
+
+/* Slick carousel override */
+.slick-dots li button:before {
+  color: var(--color-accent) !important;
+  font-size: 10px !important;
+}
+.slick-dots li.slick-active button:before {
+  color: var(--color-primary) !important;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--color-main-bg); }
+::-webkit-scrollbar-thumb { background: var(--color-primary); border-radius: 3px; }

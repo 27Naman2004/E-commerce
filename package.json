@@ -1,0 +1,19 @@
+{
+  "name": "kanha-collection",
+  "version": "1.0.0",
+  "description": "Kanha Collection - E-commerce Application",
+  "private": true,
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev -w client\" \"npm run dev -w server\"",
+    "dev:client": "npm run dev -w client",
+    "dev:server": "npm run dev -w server",
+    "build": "npm run build -w client"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
