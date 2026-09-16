@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const rateLimit = require('express-rate-limit');
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const {
   sendPhoneOtp, verifyPhoneOtp,
   sendEmailOtp, verifyEmailOtp,
@@ -14,8 +14,8 @@ const { protect } = require('../middleware/authMiddleware');
 const sendLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 5,
-  keyGenerator: (req) => `${req.ip}-${req.body?.phone || req.body?.email || 'unknown'}`,
-  message: { message: 'Too many OTP requests. Please try again after an hour.' },
+  keyGenerator: (req) => `${ipKeyGenerator(req.ip)}-${req.body?.phone || req.body?.email || 'unknown'}`,
+  message: { success: false, message: 'Too many OTP requests. Please try again after an hour.' },
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -24,7 +24,7 @@ const sendLimiter = rateLimit({
 const verifyLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
-  message: { message: 'Too many verification attempts. Please wait 15 minutes.' },
+  message: { success: false, message: 'Too many verification attempts. Please wait 15 minutes.' },
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -36,6 +36,8 @@ router.post('/send-phone-otp', sendLimiter, sendPhoneOtp);
 router.post('/verify-phone-otp', verifyLimiter, verifyPhoneOtp);
 
 // Email OTP
+router.post('/send-otp', sendLimiter, sendEmailOtp);
+router.post('/verify-otp', verifyLimiter, verifyEmailOtp);
 router.post('/send-email-otp', sendLimiter, sendEmailOtp);
 router.post('/verify-email-otp', verifyLimiter, verifyEmailOtp);
 

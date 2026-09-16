@@ -3,17 +3,32 @@ const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const Otp = require('../models/Otp');
 const { generateAccessToken, generateRefreshToken } = require('../utils/generateToken');
-const sendEmail = require('../utils/sendEmail');
-const { getOtpEmailTemplate } = require('../utils/emailTemplates');
+const sendOTPEmail = require('../utils/sendOTPEmail');
 const { sendPhoneOtp: msg91Send, verifyPhoneOtp: msg91Verify, resendPhoneOtp: msg91Resend } = require('../utils/smsService');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const generateSecureOtp = () => {
-  // Cryptographically secure 6-digit OTP
   const buf = crypto.randomBytes(4);
   const num = buf.readUInt32BE(0) % 900000 + 100000;
   return num.toString();
+};
+
+const normalizeEmail = (email = '') => email.toString().trim().toLowerCase();
+
+const validateEmail = (email) => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+  return emailRegex.test(email);
+};
+
+const createJsonResponse = ({ res, statusCode = 200, message, user, token }) => {
+  const userPayload = user ? buildUserResponse(user, token) : {};
+
+  res.status(statusCode).json({
+    success: true,
+    message,
+    ...userPayload,
+  });
 };
 
 const cookieOptions = {
@@ -109,19 +124,16 @@ const verifyPhoneOtp = async (req, res, next) => {
 // @route POST /api/auth/send-email-otp
 const sendEmailOtp = async (req, res, next) => {
   try {
-    const { email } = req.body;
+    const email = normalizeEmail(req.body.email);
 
-    // Backend email validation
-    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-    if (!email || !emailRegex.test(email)) {
+    if (!email || !validateEmail(email)) {
       res.status(400);
       throw new Error('Please enter a valid email address.');
     }
 
-    // Rate: check resend cooldown (60 seconds)
-    const existing = await Otp.findOne({ identifier: email.toLowerCase(), type: 'email' });
-    if (existing?.lastResentAt) {
-      const elapsed = (Date.now() - existing.lastResentAt.getTime()) / 1000;
+    const existing = await Otp.findOne({ identifier: email, type: 'email' });
+    if (existing?.lastResentAt && !existing.verified) {
+      const elapsed = Math.floor((Date.now() - existing.lastResentAt.getTime()) / 1000);
       if (elapsed < 60) {
         res.status(429);
         throw new Error(`Please wait ${Math.ceil(60 - elapsed)} seconds before requesting another OTP.`);
@@ -130,24 +142,37 @@ const sendEmailOtp = async (req, res, next) => {
 
     const otpCode = generateSecureOtp();
     const otpHash = await bcrypt.hash(otpCode, 10);
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 5 * 60 * 1000);
 
-    // Upsert OTP record (resets TTL)
     await Otp.findOneAndUpdate(
-      { identifier: email.toLowerCase(), type: 'email' },
-      { identifier: email.toLowerCase(), type: 'email', otpHash, attempts: 0, lastResentAt: new Date(), createdAt: new Date() },
+      { identifier: email, type: 'email' },
+      {
+        email,
+        identifier: email,
+        type: 'email',
+        otpHash,
+        expiresAt,
+        attempts: 0,
+        verified: false,
+        usedAt: undefined,
+        lastResentAt: now,
+        createdAt: now,
+      },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
 
-    // Send branded email via Resend
-    await sendEmail({
-      to: email,
-      subject: 'Your OTP for Kanha Collection 🪷',
-      html: getOtpEmailTemplate({ otp: otpCode }),
-    });
+    await sendOTPEmail({ to: email, otp: otpCode });
 
-    res.json({ message: 'OTP sent to your email address.' });
+    createJsonResponse({ res, message: 'OTP sent successfully' });
   } catch (err) {
-    if (err.message?.includes('Resend') || err.message?.includes('Failed to send email')) {
+    if (err.code === 'EMAIL_CONFIG_MISSING') {
+      const message = process.env.NODE_ENV === 'production'
+        ? 'Unable to send OTP email. Please try again.'
+        : err.message;
+      next(Object.assign(new Error(message), { status: 500 }));
+    } else if (err.message?.includes('Invalid login') || err.code) {
+      console.error('[OTP Email Error]', err.code || err.message);
       next(Object.assign(new Error('Unable to send OTP email. Please try again.'), { status: 502 }));
     } else {
       next(err);
@@ -158,29 +183,44 @@ const sendEmailOtp = async (req, res, next) => {
 // @route POST /api/auth/verify-email-otp
 const verifyEmailOtp = async (req, res, next) => {
   try {
-    const { email, otp } = req.body;
+    const email = normalizeEmail(req.body.email);
+    const otp = req.body.otp?.toString().trim();
 
-    if (!email || !otp) {
+    if (!email || !validateEmail(email) || !otp) {
       res.status(400);
       throw new Error('Email and OTP are required.');
     }
 
-    const otpRecord = await Otp.findOne({ identifier: email.toLowerCase(), type: 'email' });
+    if (!/^\d{6}$/.test(otp)) {
+      res.status(400);
+      throw new Error('OTP must be exactly 6 digits.');
+    }
 
-    // If no record → expired (TTL deleted it)
+    const otpRecord = await Otp.findOne({ identifier: email, type: 'email' });
+
     if (!otpRecord) {
       res.status(400);
       throw new Error('OTP has expired. Please request a new OTP.');
     }
 
-    // Max 5 attempts
+    if (otpRecord.verified || otpRecord.usedAt) {
+      res.status(400);
+      throw new Error('This OTP has already been used. Please request a new OTP.');
+    }
+
+    if (otpRecord.expiresAt <= new Date()) {
+      await Otp.deleteOne({ identifier: email, type: 'email' });
+      res.status(400);
+      throw new Error('OTP expired. Please request a new OTP.');
+    }
+
     if (otpRecord.attempts >= 5) {
-      await Otp.deleteOne({ identifier: email.toLowerCase(), type: 'email' });
+      await Otp.deleteOne({ identifier: email, type: 'email' });
       res.status(429);
       throw new Error('Too many incorrect attempts. Please request a new OTP.');
     }
 
-    const isMatch = await bcrypt.compare(otp.toString().trim(), otpRecord.otpHash);
+    const isMatch = await bcrypt.compare(otp, otpRecord.otpHash);
     if (!isMatch) {
       otpRecord.attempts += 1;
       await otpRecord.save();
@@ -189,13 +229,20 @@ const verifyEmailOtp = async (req, res, next) => {
       throw new Error(`Invalid OTP. ${remaining > 0 ? `${remaining} attempt(s) remaining.` : 'Please request a new OTP.'}`);
     }
 
-    // Success — delete OTP immediately
-    await Otp.deleteOne({ identifier: email.toLowerCase(), type: 'email' });
+    otpRecord.verified = true;
+    otpRecord.usedAt = new Date();
+    await otpRecord.save();
+    await Otp.deleteOne({ identifier: email, type: 'email' });
 
-    const user = await findOrCreateUser({ email: email.toLowerCase() }, 'emailVerified');
+    const user = await findOrCreateUser({ email }, 'emailVerified');
     const token = setTokenCookie(res, user._id);
 
-    res.json(buildUserResponse(user, token));
+    createJsonResponse({
+      res,
+      message: 'Email verified successfully',
+      user,
+      token,
+    });
   } catch (err) {
     next(err);
   }
@@ -217,7 +264,7 @@ const resendOtp = async (req, res, next) => {
 // @route POST /api/auth/logout
 const logout = (req, res) => {
   res.cookie('token', '', { httpOnly: true, expires: new Date(0) });
-  res.json({ message: 'Logged out successfully.' });
+  res.json({ success: true, message: 'Logged out successfully.' });
 };
 
 // @route GET /api/auth/me
@@ -225,7 +272,7 @@ const getMe = async (req, res, next) => {
   try {
     const user = await User.findById(req.user._id).select('-password');
     if (!user) { res.status(404); throw new Error('User not found'); }
-    res.json(user);
+    res.json({ success: true, user });
   } catch (err) {
     next(err);
   }

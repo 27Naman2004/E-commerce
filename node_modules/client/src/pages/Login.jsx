@@ -169,7 +169,7 @@ const Login = () => {
     if (!validate()) return;
     setLoading(true);
     try {
-      const endpoint = method === 'phone' ? '/auth/send-phone-otp' : '/auth/send-email-otp';
+      const endpoint = method === 'phone' ? '/auth/send-phone-otp' : '/auth/send-otp';
       const body = method === 'phone' ? { phone: identifier } : { email: identifier };
       await api.post(endpoint, body);
 
@@ -195,7 +195,7 @@ const Login = () => {
     setOtpError('');
     setLoading(true);
     try {
-      const endpoint = method === 'phone' ? '/auth/verify-phone-otp' : '/auth/verify-email-otp';
+      const endpoint = method === 'phone' ? '/auth/verify-phone-otp' : '/auth/verify-otp';
       const body = method === 'phone' ? { phone: identifier, otp } : { email: identifier, otp };
       const res = await api.post(endpoint, body);
       dispatch(setCredentials(res.data));
