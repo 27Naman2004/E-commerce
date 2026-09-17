@@ -94,7 +94,7 @@ class CouponServiceImplTest {
         @Test
         @DisplayName("Should apply flat discount correctly")
         void shouldApplyFlatDiscount() {
-            Coupon coupon = buildActiveCoupon(DiscountType.FLAT, BigDecimal.valueOf(100), BigDecimal.ZERO, null);
+            Coupon coupon = buildActiveCoupon(DiscountType.FIXED, BigDecimal.valueOf(100), BigDecimal.ZERO, null);
             when(couponRepository.findByCode("DIWALI20")).thenReturn(Optional.of(coupon));
 
             ValidateCouponRequest request = new ValidateCouponRequest();
@@ -111,7 +111,7 @@ class CouponServiceImplTest {
         @Test
         @DisplayName("Should cap flat discount at cart subtotal (discount cannot exceed cart value)")
         void shouldCapFlatDiscountAtSubtotal() {
-            Coupon coupon = buildActiveCoupon(DiscountType.FLAT, BigDecimal.valueOf(500), BigDecimal.ZERO, null);
+            Coupon coupon = buildActiveCoupon(DiscountType.FIXED, BigDecimal.valueOf(500), BigDecimal.ZERO, null);
             when(couponRepository.findByCode("DIWALI20")).thenReturn(Optional.of(coupon));
 
             ValidateCouponRequest request = new ValidateCouponRequest();
@@ -177,7 +177,7 @@ class CouponServiceImplTest {
         @Test
         @DisplayName("Should reject inactive coupon")
         void shouldRejectInactiveCoupon() {
-            Coupon coupon = buildActiveCoupon(DiscountType.FLAT, BigDecimal.valueOf(50), BigDecimal.ZERO, null);
+            Coupon coupon = buildActiveCoupon(DiscountType.FIXED, BigDecimal.valueOf(50), BigDecimal.ZERO, null);
             coupon.setActive(false);
             when(couponRepository.findByCode("DIWALI20")).thenReturn(Optional.of(coupon));
 
@@ -228,7 +228,7 @@ class CouponServiceImplTest {
         void shouldThrowException_WhenDuplicateCode() {
             CreateCouponRequest request = new CreateCouponRequest();
             request.setCode("DIWALI20");
-            request.setDiscountType(DiscountType.FLAT);
+            request.setDiscountType(DiscountType.FIXED);
             request.setDiscountValue(BigDecimal.valueOf(100));
 
             when(couponRepository.existsByCode("DIWALI20")).thenReturn(true);
@@ -247,7 +247,7 @@ class CouponServiceImplTest {
         @DisplayName("Should soft-delete coupon by setting isActive to false")
         void shouldSoftDeleteCoupon() {
             UUID couponId = UUID.randomUUID();
-            Coupon coupon = buildActiveCoupon(DiscountType.FLAT, BigDecimal.valueOf(50), BigDecimal.ZERO, null);
+            Coupon coupon = buildActiveCoupon(DiscountType.FIXED, BigDecimal.valueOf(50), BigDecimal.ZERO, null);
             coupon.setId(couponId);
             when(couponRepository.findById(couponId)).thenReturn(Optional.of(coupon));
             when(couponRepository.save(any(Coupon.class))).thenAnswer(inv -> inv.getArgument(0));

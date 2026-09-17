@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: theme('colors.accent');
+    color: theme('colors.textMain');
+    font-family: theme('fontFamily.body');
+  }
+  .dark body {
+    background-color: theme('colors.darkAccent');
+    color: theme('colors.textMain'); /* Wait, text in dark mode is lighter, let's just rely on global smooth transitions */
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: theme('fontFamily.heading');
+  }
+}
+
+* {
+  transition: background-color 300ms ease, color 300ms ease, border-color 300ms ease;
+}
