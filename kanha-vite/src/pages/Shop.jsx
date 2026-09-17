@@ -1,36 +1,67 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { products } from '../data/products';
+import { products as localProducts } from '../data/products';
+import { productApi } from '../services/api';
 import ProductCard from '../components/ProductCard';
 
 export default function Shop({ initialCategory = 'all' }) {
   const [activeCategory, setActiveCategory] = useState(initialCategory);
   const [maxPrice, setMaxPrice] = useState(3000);
   const [sortBy, setSortBy] = useState('featured');
-  
-  // Basic URL detection just to map nav links properly if accessed directly
+  const [apiProducts, setApiProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
   const location = useLocation();
   const pathCategory = location.pathname.substring(1); 
   const effectiveCategory = ['dresses', 'combos', 'accessories'].includes(pathCategory) ? pathCategory : activeCategory;
 
+  useEffect(() => {
+    let isMounted = true;
+    const fetchCatalog = async () => {
+      setLoading(true);
+      try {
+        const res = await productApi.getProducts({ page: 0, size: 50 });
+        if (res.data?.success && res.data?.data?.content && isMounted) {
+          const mapped = res.data.data.content.map(p => ({
+            id: p.id,
+            slug: p.slug,
+            title: p.title,
+            price: p.minPrice || 499,
+            image: p.primaryImageUrl || '/hero-krishna.jpg',
+            category: p.categoryName ? p.categoryName.toLowerCase() : 'dresses',
+            description: p.title + ' handcrafted for Kanha Ji',
+          }));
+          setApiProducts(mapped);
+        }
+      } catch (err) {
+        console.warn('Backend API offline, using static product catalog fallback:', err.message);
+        if (isMounted) setApiProducts(localProducts);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    fetchCatalog();
+    return () => { isMounted = false; };
+  }, []);
+
+  const displaySource = apiProducts.length > 0 ? apiProducts : localProducts;
+
   const filteredProducts = useMemo(() => {
-    let result = products;
-    
-    // 1. Filter Category
+    let result = displaySource;
+
     if (effectiveCategory !== 'all') {
-      result = result.filter(p => p.category === effectiveCategory);
+      result = result.filter(p => (p.category || '').toLowerCase().includes(effectiveCategory));
     }
-    
-    // 2. Filter Price
+
     result = result.filter(p => p.price <= maxPrice);
-    
-    // 3. Sort
+
     if (sortBy === 'price-low') result = [...result].sort((a,b) => a.price - b.price);
     if (sortBy === 'price-high') result = [...result].sort((a,b) => b.price - a.price);
 
     return result;
-  }, [effectiveCategory, maxPrice, sortBy]);
+  }, [displaySource, effectiveCategory, maxPrice, sortBy]);
 
   return (
     <div className="bg-accent dark:bg-darkAccent transition-colors duration-300 min-h-screen py-16">
@@ -61,7 +92,7 @@ export default function Shop({ initialCategory = 'all' }) {
               type="range" 
               min="100" max="3000" step="100" 
               value={maxPrice} 
-              onChange={(e) => setMaxPrice(e.target.value)} 
+              onChange={(e) => setMaxPrice(Number(e.target.value))} 
               className="w-full accent-primary dark:accent-darkPrimary"
             />
           </div>
@@ -86,10 +117,17 @@ export default function Shop({ initialCategory = 'all' }) {
              <h2 className="text-3xl font-heading font-bold text-primary dark:text-darkPrimary capitalize transition-colors">
                {effectiveCategory === 'all' ? 'Entire Collection' : effectiveCategory}
              </h2>
-             <span className="font-body text-textMuted dark:text-darkTextMuted text-sm transition-colors">{filteredProducts.length} Products</span>
+             <span className="font-body text-textMuted dark:text-darkTextMuted text-sm transition-colors">
+               {loading ? 'Loading...' : `${filteredProducts.length} Products`}
+             </span>
            </div>
 
-           {filteredProducts.length > 0 ? (
+           {loading ? (
+             <div className="py-20 text-center">
+               <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-primary border-t-transparent"></div>
+               <p className="font-body text-textMuted dark:text-darkTextMuted mt-4">Loading devotional catalog...</p>
+             </div>
+           ) : filteredProducts.length > 0 ? (
              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
                {filteredProducts.map(p => <ProductCard key={p.id} product={p} />)}
              </div>

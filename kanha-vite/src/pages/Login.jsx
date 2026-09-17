@@ -1,24 +1,49 @@
-import { useState } from 'react';
+import { useState, useContext } from 'react';
 import { motion } from 'framer-motion';
-import { Link, useNavigate } from 'react-router-dom';
-import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
+import { AuthContext } from '../context/AuthContext';
 
 const Login = () => {
-  const [form, setForm] = useState({ email: '', password: '' });
+  const [isRegister, setIsRegister] = useState(false);
+  const [form, setForm] = useState({ fullName: '', email: '', password: '', phone: '' });
   const [showPass, setShowPass] = useState(false);
   const [errors, setErrors] = useState({});
+  const [submitError, setSubmitError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const { login, register } = useContext(AuthContext);
   const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setSubmitError('');
     const err = {};
+
     if (!/\S+@\S+\.\S+/.test(form.email)) err.email = 'Enter a valid email';
-    if (form.password.length < 6) err.password = 'Password must be 6+ chars';
+    if (form.password.length < 8) err.password = 'Password must be at least 8 characters';
+    if (isRegister && !form.fullName.trim()) err.fullName = 'Full name is required';
+
     setErrors(err);
-    if (Object.keys(err).length === 0) {
-      localStorage.setItem('kanha-token', 'dummy-token');
-      toast.success('✅ Logged in successfully!');
+    if (Object.keys(err).length > 0) return;
+
+    setSubmitting(true);
+    try {
+      if (isRegister) {
+        await register({
+          fullName: form.fullName,
+          email: form.email,
+          password: form.password,
+          phone: form.phone || undefined,
+        });
+      } else {
+        await login(form.email, form.password);
+      }
       navigate('/home');
+    } catch (apiErr) {
+      const msg = apiErr.response?.data?.message || apiErr.message || 'Authentication failed';
+      setSubmitError(msg);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -31,65 +56,74 @@ const Login = () => {
         <h1 className="font-heading text-3xl text-center font-bold text-primary dark:text-darkPrimary mb-2">
           Kanha Collection
         </h1>
-        <p className="text-center font-body text-textMuted dark:text-darkTextMuted mb-8">
-          Welcome back 🙏
+        <p className="text-center font-body text-textMuted dark:text-darkTextMuted mb-6">
+          {isRegister ? 'Join our devotional family 🙏' : 'Welcome back 🙏'}
         </p>
 
-        <form onSubmit={handleSubmit} className="space-y-5 font-body">
+        {submitError && (
+          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 text-sm rounded-lg text-center font-body">
+            {submitError}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4 font-body">
+          {isRegister && (
+            <div>
+              <input
+                type="text" placeholder="Full Name" value={form.fullName} onChange={e => setForm({ ...form, fullName: e.target.value })}
+                className="w-full px-4 py-3 rounded-lg border border-borderSoft dark:border-darkBorder bg-transparent text-textMain dark:text-darkText focus:border-gold focus:ring-1 focus:ring-gold outline-none transition-all"
+              />
+              {errors.fullName && <p className="text-xs font-bold text-red-500 mt-1">{errors.fullName}</p>}
+            </div>
+          )}
+
           <div>
             <input
               type="email" placeholder="Email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
-              className="w-full px-4 py-3 rounded-lg border border-borderSoft dark:border-darkBorder bg-transparent text-textMain dark:text-darkText focus:border-gold focus:ring-1 focus:ring-gold outline-none transition-all duration-300"
+              className="w-full px-4 py-3 rounded-lg border border-borderSoft dark:border-darkBorder bg-transparent text-textMain dark:text-darkText focus:border-gold focus:ring-1 focus:ring-gold outline-none transition-all"
             />
-            {errors.email && (
-              <p className="text-sm font-bold text-[#C2185B] mt-2">{errors.email}</p>
-            )}
+            {errors.email && <p className="text-xs font-bold text-red-500 mt-1">{errors.email}</p>}
           </div>
+
+          {isRegister && (
+            <div>
+              <input
+                type="tel" placeholder="Phone Number (10 digits)" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
+                className="w-full px-4 py-3 rounded-lg border border-borderSoft dark:border-darkBorder bg-transparent text-textMain dark:text-darkText focus:border-gold focus:ring-1 focus:ring-gold outline-none transition-all"
+              />
+            </div>
+          )}
 
           <div className="relative">
             <input
-              type={showPass ? 'text' : 'password'} placeholder="Password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })}
-              className="w-full px-4 py-3 rounded-lg border border-borderSoft dark:border-darkBorder bg-transparent text-textMain dark:text-darkText focus:border-gold focus:ring-1 focus:ring-gold outline-none transition-all duration-300"
+              type={showPass ? 'text' : 'password'} placeholder="Password (min 8 chars)" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })}
+              className="w-full px-4 py-3 rounded-lg border border-borderSoft dark:border-darkBorder bg-transparent text-textMain dark:text-darkText focus:border-gold focus:ring-1 focus:ring-gold outline-none transition-all"
             />
-            <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-3 text-2xl text-textMuted">
+            <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-3 text-xl text-textMuted">
               {showPass ? '🙈' : '👁️'}
             </button>
-            {errors.password && (
-              <p className="text-sm font-bold text-[#C2185B] mt-2">{errors.password}</p>
-            )}
+            {errors.password && <p className="text-xs font-bold text-red-500 mt-1">{errors.password}</p>}
           </div>
 
-          <div className="flex items-center justify-between text-sm pt-2">
-            <label className="flex items-center gap-2 text-textMuted dark:text-darkTextMuted cursor-pointer hover:text-textMain transition-colors">
-              <input type="checkbox" className="accent-primary w-4 h-4 cursor-pointer" />
-              Remember me
-            </label>
-            <Link to="#" className="text-primary dark:text-darkPrimary hover:underline font-semibold">
-              Forgot password?
-            </Link>
-          </div>
-
-          <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} type="submit" className="w-full py-4 mt-4 rounded-xl bg-primary hover:bg-primaryDark dark:bg-darkPrimary dark:hover:bg-darkPrimaryHover text-white font-bold uppercase tracking-widest shadow-md transition-colors duration-300">
-            Login
-          </motion.button>
-          
-          <div className="relative flex py-5 items-center">
-            <div className="flex-grow border-t border-borderSoft dark:border-darkBorder"></div>
-            <span className="flex-shrink-0 mx-4 text-textMuted text-sm font-body">Or</span>
-            <div className="flex-grow border-t border-borderSoft dark:border-darkBorder"></div>
-          </div>
-
-          <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} type="button" className="w-full flex items-center justify-center gap-3 py-3 rounded-xl border border-borderSoft dark:border-darkBorder bg-surface dark:bg-darkSurface text-textMain dark:text-darkText font-bold shadow-sm hover:border-textMain transition-all">
-            <svg className="w-5 h-5" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-            Continue with Google
+          <motion.button 
+            whileHover={{ scale: 1.02 }} 
+            whileTap={{ scale: 0.98 }} 
+            type="submit" 
+            disabled={submitting}
+            className="w-full py-3.5 mt-2 rounded-xl bg-primary hover:bg-primaryDark dark:bg-darkPrimary dark:hover:bg-darkPrimaryHover text-white font-bold uppercase tracking-widest shadow-md transition-colors duration-300 disabled:opacity-50"
+          >
+            {submitting ? (isRegister ? 'Registering...' : 'Logging in...') : (isRegister ? 'Create Account' : 'Login')}
           </motion.button>
         </form>
 
-        <p className="text-center font-body text-sm text-textMuted dark:text-darkTextMuted mt-8">
-          New here?{' '}
-          <Link to="#" className="text-primary dark:text-darkPrimary font-bold hover:underline">
-            Create an account
-          </Link>
+        <p className="text-center font-body text-sm text-textMuted dark:text-darkTextMuted mt-6">
+          {isRegister ? 'Already have an account? ' : 'New here? '}
+          <button 
+            onClick={() => { setIsRegister(!isRegister); setSubmitError(''); setErrors({}); }} 
+            className="text-primary dark:text-darkPrimary font-bold hover:underline"
+          >
+            {isRegister ? 'Sign In' : 'Create an account'}
+          </button>
         </p>
       </motion.div>
     </div>
