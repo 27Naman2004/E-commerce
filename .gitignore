@@ -43,6 +43,7 @@ hs_err_pid*
 # Node.js & Frontend Artifacts
 # ------------------------------------------
 node_modules/
+node_modules
 .next/
 out/
 build/
